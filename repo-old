@@ -1,0 +1,172 @@
+#!/bin/bash
+
+################################################################################
+#  This file is part of LibreELEC - https://LibreELEC.tv
+#  Copyright (C) 2016 Christian Hewitt (chewitt@LibreELEC.tv)
+#
+#  LibreELEC is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 2 of the License, or
+#  (at your option) any later version.
+#
+#  LibreELEC is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with LibreELEC.  If not, see <http://www.gnu.org/licenses/>.
+################################################################################
+
+set -e
+
+. config/version
+
+# define colors
+  black="\e[0;30m"
+  boldblack="\e[1;30m"
+  red="\e[0;31m"
+  boldred="\e[1;31m"
+  green="\e[0;32m"
+  boldgreen="\e[1;32m"
+  yellow="\e[0;33m"
+  boldyellow="\e[1;33m"
+  blue="\e[0;34m"
+  boldblue="\e[1;34m"
+  magenta="\e[0;35m"
+  boldmagenta="\e[1;35m"
+  cyan="\e[0;36m"
+  boldcyan="\e[1;36m"
+  white="\e[0;37m"
+  boldwhite="\e[1;37m"
+  endcolor="\e[0m"
+
+do_rundir(){
+  if [ ! -d target ] && [ ! -d .git ]; then
+    echo ""
+    echo "FAIL: This script must run from the root folder of the build system"
+    echo ""
+    exit
+  fi
+}
+
+do_select(){
+  case $1 in
+    ATV)
+      declare -a PROJECTS=(ATV)
+      do_build
+      ;;
+    Generic)
+      declare -a PROJECTS=(Generic)
+      do_build
+      ;;
+    RPi)
+      declare -a PROJECTS=(RPi)
+      do_build
+      ;;
+    RPi2)
+      declare -a PROJECTS=(RPi2)
+      do_build
+      ;;
+    pi)
+      declare -a PROJECTS=(RPi RPi2)
+      do_build
+      ;;
+    imx6)
+      declare -a PROJECTS=(imx6)
+      do_build
+      ;;
+    c2|Odroid_C2)
+      declare -a PROJECTS=(Odroid_C2)
+      do_build
+      ;;
+    wp|WeTek_Play)
+      declare -a PROJECTS=(WeTek_Play)
+      do_build
+      ;;
+    wc|WeTek_Core)
+      # WC is aliased to WP
+      declare -a PROJECTS=(WeTek_Play)
+      do_build
+      ;;
+    all)
+      if [ "$OS_VERSION" != "7.0" ]; then
+        declare -a PROJECTS=(Generic imx6 Odroid_C2 RPi RPi2 WeTek_Play)
+      else
+        declare -a PROJECTS=(Generic imx6 RPi RPi2 WeTek_Play)
+      fi
+      do_build
+      ;;
+    sync|rsync)
+      do_reposync
+      ;;
+    *)
+      echo "NOTHING SELECTED"
+  esac
+}
+
+do_build(){
+  for PROJECT in "${PROJECTS[@]}" ; do
+    (
+    for ARCHFILE in projects/$PROJECT/linux/linux.*.conf ; do
+      ARCH=$(echo $ARCHFILE | sed -n '$s/\.conf//;$s/.*\.//p')
+      for PACKAGE in packages/mediacenter/kodi-binary-addons/* ; do
+        ADDON=$(basename "$PACKAGE")
+        [[ $ADDON =~ ^(peripheral.joystick)$ ]] && continue
+        [[ $ADDON =~ ^(adsp.*)$ ]] && continue
+        [[ $ADDON =~ ^(game.*)$ ]] && continue
+        echo "PROJECT=$PROJECT ARCH=$ARCH ./scripts/create_addon $ADDON"
+        if [ "$PROJECT" = "imx6" ]; then
+          ARCH="arm"
+        fi
+        PROJECT=$PROJECT ARCH=$ARCH ./scripts/create_addon "$ADDON" 2>&1 | tee -a Log-$PROJECT-addons.log
+      done
+      for PACKAGE in $(find packages/addons -not -path "*/mono-depends/*" -iname package.mk) ; do
+        . $PACKAGE
+        if [ "$PKG_IS_ADDON" = "yes" ] ; then
+          ADDON=$PKG_NAME
+          echo "PROJECT=$PROJECT ARCH=$ARCH ./scripts/create_addon $ADDON"
+          PROJECT=$PROJECT ARCH=$ARCH ./scripts/create_addon $ADDON 2>&1 | tee -a Log-$PROJECT-addons.log
+        fi
+      done
+    done
+    do_xml
+    )&
+  done
+}
+
+do_xml(){
+  ADDONS_PATH="target/addons/$ADDON_VERSION/$PROJECT/$ARCH"
+  ADDONS_XML='<?xml version="1.0" encoding="UTF-8"?>\n\n<addons>'
+  echo -e "*** ${white}CREATE REPO addon.xml for $PROJECT${endcolor} ***"
+  for PACKAGE in $(ls -d1 $ADDONS_PATH/*/) ; do
+    ADDON=$(basename "$PACKAGE")
+    ARCHIVE=$(find "$PACKAGE" -maxdepth 1 -name "*.zip" | egrep "[a-zA-Z0-9\.]+-[0-9]+\.[0-9]+\.[0-9]+\.([0-9]+\.)?zip" | sort -V | tail -1)
+    if [ -n "$ARCHIVE" ]; then
+      ADDON_XML=$(unzip -p "$ARCHIVE" "$ADDON/addon.xml" | grep -v "<\?xml")
+      ADDONS_XML="$ADDONS_XML\n\n$ADDON_XML"
+    fi
+  done
+  ADDONS_XML="$ADDONS_XML\n\n</addons>\n"
+  echo -e "$ADDONS_XML" > "$ADDONS_PATH"/addons.xml
+  if [ -a $ADDONS_PATH/addons.xml.gz ]; then
+    rm $ADDONS_PATH/addons.xml.gz
+  fi
+  if [ "$OS_VERSION" = "8.0" ]; then
+    gzip $ADDONS_PATH/addons.xml
+    md5sum $ADDONS_PATH/addons.xml.gz | cut -f1 -d ' ' > $ADDONS_PATH/addons.xml.gz.md5
+  else
+    gzip -k $ADDONS_PATH/addons.xml
+    md5sum $ADDONS_PATH/addons.xml | cut -f1 -d ' ' > $ADDONS_PATH/addons.xml.md5
+    md5sum $ADDONS_PATH/addons.xml.gz | cut -f1 -d ' ' > $ADDONS_PATH/addons.xml.gz.md5
+  fi
+}
+
+do_reposync(){
+  rsync -rP -e "ssh -p 4567" target/addons/$ADDON_VERSION/* web02.libreelec.tv:/var/www/addons.libreelec.tv/$ADDON_VERSION
+}
+
+do_rundir
+do_select "$@"
+
+exit 0

@@ -1,0 +1,232 @@
+#!/bin/bash
+
+################################################################################
+#      This file is part of LibreELEC - http://libreelec.tv
+#      Copyright (C) 2016-2017 Christian Hewitt (chewitt@libreelec.tv)
+#
+#  LibreELEC is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 2 of the License, or
+#  (at your option) any later version.
+#
+#  LibreELEC is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with LibreELEC.  If not, see <http://www.gnu.org/licenses/>.
+################################################################################
+
+# simple script for building addons indivudually or in bulk
+
+set -e
+
+. config/version
+
+# define distro
+DISTRO="LibreELEC"
+
+# clear devices
+DEVICES=""
+DEVICE=""
+
+# define colors
+black="\\e[0;30m"
+boldblack="\\e[1;30m"
+red="\\e[0;31m"
+boldred="\\e[1;31m"
+green="\\e[0;32m"
+boldgreen="\\e[1;32m"
+yellow="\\e[0;33m"
+boldyellow="\\e[1;33m"
+blue="\\e[0;34m"
+boldblue="\\e[1;34m"
+magenta="\\e[0;35m"
+boldmagenta="\\e[1;35m"
+cyan="\\e[0;36m"
+boldcyan="\\e[1;36m"
+white="\\e[0;37m"
+boldwhite="\\e[1;37m"
+endcolor="\\e[0m"
+
+do_user(){
+  if [ "$(id -u)" = "0" ]; then
+    echo ""
+    echo "${red}FAIL: You must not build with root priviliges ${endcolor}"
+    echo ""
+  fi
+}
+
+do_rundir(){
+  if [ ! -d target ] && [ ! -d .git ]; then
+    echo ""
+    echo "${red}FAIL: This script must run from the root folder of the build system ${endcolor}"
+    echo ""
+    exit
+  fi
+}
+
+do_select(){
+  case $1 in
+    Generic)
+      declare -a PROJECTS=(Generic)
+      do_build "$@"
+      ;;
+    pi1|RPi)
+      declare -a PROJECTS=(RPi) && DEVICE="RPi"
+      do_build "$@"
+      ;;
+    pi2|RPi2)
+      declare -a PROJECTS=(RPi) && DEVICE="RPi2"
+      do_build "$@"
+      ;;
+    imx6|iMX6)
+      declare -a PROJECTS=(NXP) && DEVICE="iMX6"
+      do_build "$@"
+      ;;
+    rk|RK3328)
+      declare -a PROJECTS=(Rockchip) && DEVICE="RK3328"
+      do_build "$@"
+      ;;
+    s905|S905|s912|S912|c2|wp2)
+      declare -a PROJECTS=(Amlogic) && DEVICE="S905"
+      do_build "$@"
+      ;;
+    wp|WeTek_Play)
+      declare -a PROJECTS=(WeTek_Play)
+      do_build "$@"
+      ;;
+    all)
+      declare -a PROJECTS=(Generic Amlogic Rockchip RPi WeTek_Play)
+      do_build "$@"
+      ;;
+    xml)
+      do_xml "$@"
+      ;;
+    sync)
+      do_reposync "$@"
+      ;;
+    *)
+      echo "NOTHING SELECTED"
+      exit 0
+  esac
+}
+
+do_addon(){
+  for PACKAGE in $(find packages -name "$2") ; do
+    ADDON=$(basename "$PACKAGE")
+    PROJECT=$PROJECT DEVICE=$DEVICE ARCH=$ARCH scripts/create_addon "$ADDON" 2>&1 | tee -a Log-${DEVICE:-${PROJECT}}-addons.log
+  done
+}
+
+do_addons_kodi(){
+  for PACKAGE in packages/mediacenter/kodi-binary-addons/* ; do
+    ADDON=$(basename "$PACKAGE")
+    [[ $ADDON =~ ^(peripheral.joystick)$ ]] && continue
+    [[ $ADDON =~ ^(adsp.*)$ ]] && continue
+    [[ $ADDON =~ ^(game.*)$ ]] && continue
+    PROJECT=$PROJECT DEVICE=$DEVICE ARCH=$ARCH scripts/create_addon "$ADDON" 2>&1 | tee -a Log-${DEVICE:-${PROJECT}}-addons.log
+  done
+}
+
+do_addons_distro(){
+  for PACKAGE in $(find packages/addons -not -path "*/mono-depends/*" -iname package.mk) ; do
+    PROJECT=$PROJECT DEVICE=$DEVICE ARCH=$ARCH . config/options $(basename $(dirname $PACKAGE))
+    if [ "$PKG_IS_ADDON" = "yes" ] ; then
+      ADDON=$PKG_NAME
+      [[ $ADDON =~ ^(script.program.driverselect)$ ]] && continue
+      [[ $ADDON =~ ^(service.slice)$ ]] && continue
+      [[ $ADDON =~ ^(tools.mono)$ ]] && continue
+      PROJECT=$PROJECT DEVICE=$DEVICE ARCH=$ARCH scripts/create_addon "$ADDON" 2>&1 | tee -a Log-${DEVICE:-${PROJECT}}-addons.log
+    fi
+  done
+}
+
+do_building(){
+  if [ -n "$2" ]; then
+    do_addon "$@"
+  else
+    do_addons_kodi
+    do_addons_distro
+  fi
+  do_xml
+}
+
+do_build(){
+  for PROJECT in "${PROJECTS[@]}" ; do
+    (
+      case $PROJECT in
+        Generic) ARCH="x86_64";;
+        *) ARCH="arm" ;;
+      esac
+      if [ -z "$DEVICE" ] && [ "$PROJECT" = "Amlogic" ]; then
+        declare -a DEVICES=(S905)
+        for DEVICE in "${DEVICES[@]}" ; do
+          (
+            do_building "$@"
+          )&
+        done
+      elif [ -z "$DEVICE" ] && [ "$PROJECT" = "Rockchip" ]; then
+        declare -a DEVICES=(RK3288)
+        for DEVICE in "${DEVICES[@]}" ; do
+          (
+            do_building "$@"
+          )&
+        done
+      elif [ -z "$DEVICE" ] && [ "$PROJECT" = "RPi" ]; then
+        declare -a DEVICES=(RPi RPi2)
+        for DEVICE in "${DEVICES[@]}" ; do
+          (
+            do_building "$@"
+          )&
+        done
+      else
+        do_building "$@"
+      fi
+    )&
+  done
+}
+
+do_xml(){
+  ADDONS_PATH="target/addons/$ADDON_VERSION/${DEVICE:-$PROJECT}/$ARCH"
+  ADDONS_XML='<?xml version="1.0" encoding="UTF-8"?>\n\n<addons>'
+  echo -e "${red}*** ${white}CREATE REPO addons.xml for ${DEVICE:-$PROJECT}${red} ***${endcolor}"
+  for PACKAGE in $(ls -d1 $ADDONS_PATH/*/) ; do
+    ADDON=$(basename "$PACKAGE")
+    ARCHIVE=$(find "$PACKAGE" -maxdepth 1 -name "*.zip" | egrep "[a-zA-Z0-9\.]+-[0-9]+\.[0-9]+\.[0-9]+\.([0-9]+\.)?zip" | sort -V | tail -1)
+    if [ -n "$ARCHIVE" ]; then
+      ADDON_XML=$(unzip -p "$ARCHIVE" "$ADDON/addon.xml" | grep -v "<\?xml")
+      ADDONS_XML="$ADDONS_XML\n\n$ADDON_XML"
+    fi
+  done
+  ADDONS_XML="$ADDONS_XML\n\n</addons>\n"
+
+  [[ -a $ADDONS_PATH/addons.xml ]] && rm $ADDONS_PATH/addons.xml
+  [[ -a $ADDONS_PATH/addons.xml.md5 ]] && rm $ADDONS_PATH/addons.xml.md5
+  [[ -a $ADDONS_PATH/addons.xml.sha256 ]] && rm $ADDONS_PATH/addons.xml.sha256
+  [[ -a $ADDONS_PATH/addons.xml.gz ]] && rm $ADDONS_PATH/addons.xml.gz
+  [[ -a $ADDONS_PATH/addons.xml.gz.md5 ]] && rm $ADDONS_PATH/addons.xml.gz.md5
+  [[ -a $ADDONS_PATH/addons.xml.gz.sha256 ]] && rm $ADDONS_PATH/addons.xml.gz.sha256
+
+  echo -e "$ADDONS_XML" > "$ADDONS_PATH"/addons.xml
+
+  gzip $ADDONS_PATH/addons.xml
+  md5sum $ADDONS_PATH/addons.xml.gz | cut -f1 -d ' ' > $ADDONS_PATH/addons.xml.gz.md5
+  sha256sum $ADDONS_PATH/addons.xml.gz | cut -f1 -d ' ' > $ADDONS_PATH/addons.xml.gz.sha256
+}
+
+do_reposync(){
+  if [ -n "$2" ]; then # sync a specific addon and addons.xml files
+    rsync -rP -e "ssh -p 4567" target/addons/$ADDON_VERSION/${DEVICE:-$PROJECT}/$ARCH/$2 releases.libreelec.tv:/var/www/addons/$ADDON_VERSION/${DEVICE:-$PROJECT}/$ARCH/$2
+    rsync -rP -e "ssh -p 4567" target/addons/$ADDON_VERSION/${DEVICE:-$PROJECT}/$ARCH/addons.xml* releases.libreelec.tv:/var/www/addons/$ADDON_VERSION/${DEVICE:-$PROJECT}/$ARCH
+  else  #sync the entire repo
+    rsync -rP -e "ssh -p 4567" target/addons/$ADDON_VERSION/* releases.libreelec.tv:/var/www/addons/$ADDON_VERSION
+  fi
+}
+
+do_user
+do_rundir
+do_select "$@"
+
+exit 0

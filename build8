@@ -1,0 +1,159 @@
+#!/bin/bash
+
+################################################################################
+#      This file is part of LibreELEC - http://libreelec.tv
+#      Copyright (C) 2016-2017 Christian Hewitt (chewitt@libreelec.tv)
+#
+#  LibreELEC is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 2 of the License, or
+#  (at your option) any later version.
+#
+#  LibreELEC is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with LibreELEC.  If not, see <http://www.gnu.org/licenses/>.
+################################################################################
+
+# simple script for building projects for a single distribution
+
+set -e
+
+. config/version
+
+BUILDER=$(whoami)
+DISTRO="LibreELEC"
+
+case $1 in
+  ATV)
+    declare -a PROJECTS=(ATV)
+    ;;
+  Generic)
+    declare -a PROJECTS=(Generic)
+    ;;
+  pi1|RPi)
+    declare -a PROJECTS=(RPi)
+    ;;
+  pi2|RPi2)
+    declare -a PROJECTS=(RPi2)
+    ;;
+  pi)
+    declare -a PROJECTS=(RPi RPi2)
+    ;;
+  s1|Slice)
+    declare -a PROJECTS=(Slice)
+    ;;
+  s3|s2|Slice3|Slice2)
+    declare -a PROJECTS=(Slice3)
+    ;;
+  slice)
+    declare -a PROJECTS=(Slice Slice3)
+    ;;
+  leiot)
+    declare -a PROJECTS=(RPi2)
+    DISTRO="LEIoT"
+    ;;
+  imx6)
+    declare -a PROJECTS=(imx6)
+    ;;
+  c2|Odroid_C2)
+    declare -a PROJECTS=(Odroid_C2)
+    ;;
+  virtual|Virtual)
+    declare -a PROJECTS=(Virtual)
+    ;;
+  wh|WeTek_Hub)
+    declare -a PROJECTS=(WeTek_Hub)
+    ;;
+  wp|WeTek_Play)
+    declare -a PROJECTS=(WeTek_Play)
+    ;;
+  wp2|WeTek_Play_2)
+    declare -a PROJECTS=(WeTek_Play_2)
+    ;;
+  wc|WeTek_Core)
+    declare -a PROJECTS=(WeTek_Core)
+    ;;
+  wetek)
+    declare -a PROJECTS=(WeTek_Play WeTek_Play_2 WeTek_Core WeTek_Hub)
+    ;;
+  amlogic)
+    declare -a PROJECTS=(Odroid_C2 WeTek_Play WeTek_Play_2 WeTek_Core WeTek_Hub)
+    ;;
+  addons)
+    if [ "$OS_VERSION" != "7.0" ]; then
+      declare -a PROJECTS=(Generic imx6 Odroid_C2 RPi RPi2 WeTek_Play)
+    else
+      declare -a PROJECTS=(Generic imx6 RPi RPi2 WeTek_Play)
+    fi
+    ;;
+  all)
+    if [ "$OS_VERSION" = "7.0" ]; then
+      declare -a PROJECTS=(Generic imx6 RPi RPi2 Virtual WeTek_Play WeTek_Core)
+    elif [ "$OS_VERSION" = "8.0" ]; then
+      declare -a PROJECTS=(Generic imx6 Odroid_C2 RPi RPi2 Virtual WeTek_Play WeTek_Play_2 WeTek_Core WeTek_Hub)
+    elif [ "$OS_VERSION" = "8.2" ]; then
+      declare -a PROJECTS=(Generic imx6 Odroid_C2 RPi RPi2 Slice Slice3 WeTek_Play WeTek_Play_2 WeTek_Core WeTek_Hub)
+    else # we are 9.0
+      declare -a PROJECTS=(Generic imx6 Odroid_C2 RPi RPi2 WeTek_Play WeTek_Play_2 WeTek_Core WeTek_Hub)
+    fi
+    ;;
+  sync)
+    rsync -rP -e "ssh -p 4567" target/*.* web03.libreelec.tv:/home/$BUILDER/www/samples/$OS_VERSION/
+    ;;
+  *)
+    echo "NOTHING SELECTED"
+    exit 0
+esac
+
+for PROJECT in "${PROJECTS[@]}" ; do
+  for ARCHFILE in projects/$PROJECT/linux/linux.*.conf ; do
+    ARCH=$(echo "$ARCHFILE" | sed -n '$s/\.conf//;$s/.*\.//p')
+    (
+    if [ -f Log-$PROJECT-build.log ]; then
+      rm Log-$PROJECT-build.log
+    fi
+    if [ "$PROJECT" = "imx6" ]; then
+      DISTRO=$DISTRO PROJECT=$PROJECT ARCH=arm make image 2>&1 | tee -a Log-$PROJECT-build.log || exit 1
+    elif [ "$PROJECT" = "RPi" ] || [ "$PROJECT" = "RPi2" ]; then
+      DISTRO=$DISTRO PROJECT=$PROJECT ARCH=$ARCH make noobs 2>&1 | tee -a Log-$PROJECT-build.log || exit 1
+    elif [ "$PROJECT" = "WeTek_Play" ] || [ "$PROJECT" = "WeTek_Play_2" ] || [ "$PROJECT" = "WeTek_Core" ] || [ "$PROJECT" = "WeTek_Hub" ]; then
+      DISTRO=$DISTRO PROJECT=$PROJECT ARCH=$ARCH make amlpkg 2>&1 | tee -a Log-$PROJECT-build.log || exit 1
+    else
+      DISTRO=$DISTRO PROJECT=$PROJECT ARCH=$ARCH make image 2>&1 | tee -a Log-$PROJECT-build.log || exit 1
+    fi
+
+    # clean stray folders
+    if [ -d target/$DISTRO-$PROJECT.$ARCH-$LIBREELEC_VERSION ]; then
+      rm -rf target/$DISTRO-$PROJECT.$ARCH-$LIBREELEC_VERSION | tee -a Log-$PROJECT-build.log || exit 1
+    fi
+    if [ -d target/$DISTRO-$PROJECT.$ARCH-$LIBREELEC_VERSION-noobs ]; then
+      rm -rf target/$DISTRO-$PROJECT.$ARCH-$LIBREELEC_VERSION-noobs | tee -a Log-$PROJECT-build.log || exit 1
+    fi
+
+    # clean .img.gz as this is not shipped
+    if [ -a target/$DISTRO-Virtual.x86_64-$LIBREELEC_VERSION.img.gz ]; then
+      rm -f target/$DISTRO-Virtual.x86_64-$LIBREELEC_VERSION.img.gz | tee -a Log-$PROJECT-build.log || exit 1
+    fi
+
+    # rename .img.ova to .ova
+    if [ -a target/$DISTRO-Virtual.x86_64-$LIBREELEC_VERSION.img.ova ]; then
+      mv target/$DISTRO-Virtual.x86_64-$LIBREELEC_VERSION.img.ova target/$DISTRO-Virtual.x86_64-$LIBREELEC_VERSION.ova | tee -a Log-$PROJECT-build.log || exit 1
+    fi
+
+    # clean .kernel and .system files
+    rm -f target/$DISTRO-$PROJECT.$ARCH-$LIBREELEC_VERSION.kernel | tee -a Log-$PROJECT-build.log || exit 1
+    rm -f target/$DISTRO-$PROJECT.$ARCH-$LIBREELEC_VERSION.system | tee -a Log-$PROJECT-build.log || exit 1
+
+    # all done
+    sleep 1
+    echo "$DISTRO-$PROJECT.$ARCH-$LIBREELEC_VERSION BUILD COMPLETE!" | tee -a Log-$PROJECT-build.log || exit 1
+    exit 0
+    )&
+  done
+done
+
+exit 0
