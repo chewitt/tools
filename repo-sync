@@ -1,0 +1,21 @@
+#!/bin/bash
+
+# SPDX-License-Identifier: GPL-2.0-or-later
+# Copyright (C) 2018 Christian Hewitt (chewitt@libreelec.tv)
+
+. config/version
+
+# prevent ~/.libreelec/options from setting a version
+sed -i 's|HOME/.libreelec/options|HOME/.libreelec/disabled|g' config/options
+
+case $1 in
+  amlgx)
+    rsync -rvuc -e "ssh -p 4567" target/addons/$ADDON_VERSION/* amlgx@team.libreelec.net:/mnt/teamspace/amlgx/$ADDON_VERSION
+    ;;
+  *)
+    echo "error: no repo destination specified!"
+    exit 1
+    ;;
+esac
+
+exit 0

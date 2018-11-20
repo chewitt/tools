@@ -2,7 +2,7 @@
 
 ################################################################################
 #      This file is part of LibreELEC - http://libreelec.tv
-#      Copyright (C) 2016-2017 Christian Hewitt (chewitt@libreelec.tv)
+#      Copyright (C) 2016-2018 Christian Hewitt (chewitt@libreelec.tv)
 #
 #  LibreELEC is free software: you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
@@ -23,6 +23,12 @@
 set -e
 
 . config/version
+
+# prevent ~/.libreelec/options from setting a version
+sed -i 's/HOME\/.libreelec\/options/HOME\/.libreelec\/disabled/g' config/options
+
+# define overwrite
+OVERWRITE=no
 
 # define distro
 DISTRO="LibreELEC"
@@ -89,6 +95,10 @@ do_select(){
       declare -a PROJECTS=(Rockchip) && DEVICE="RK3328"
       do_build "$@"
       ;;
+    amlgx)
+      declare -a PROJECTS=(Amlogic_GX) && DEVICE="Odroid_C2"
+      do_build "$@"
+      ;;
     s905|S905|s912|S912|c2|wp2)
       declare -a PROJECTS=(Amlogic) && DEVICE="S905"
       do_build "$@"
@@ -124,9 +134,11 @@ do_addons_kodi(){
   for PACKAGE in packages/mediacenter/kodi-binary-addons/* ; do
     ADDON=$(basename "$PACKAGE")
     [[ $ADDON =~ ^(peripheral.joystick)$ ]] && continue
+    [[ $ADDON =~ ^(peripheral.steamcontroller)$ ]] && continue
+    [[ $ADDON =~ ^(peripheral.xarcade)$ ]] && continue
+    [[ $ADDON =~ ^(visualization.wavforhue)$ ]] && continue
     [[ $ADDON =~ ^(adsp.*)$ ]] && continue
-    [[ $ADDON =~ ^(game.*)$ ]] && continue
-    PROJECT=$PROJECT DEVICE=$DEVICE ARCH=$ARCH scripts/create_addon "$ADDON" 2>&1 | tee -a Log-${DEVICE:-${PROJECT}}-addons.log
+    PROJECT=$PROJECT DEVICE=$DEVICE ARCH=$ARCH ADDON_OVERWRITE=$OVERWRITE scripts/create_addon "$ADDON" 2>&1 | tee -a Log-${DEVICE:-${PROJECT}}-addons.log
   done
 }
 
@@ -135,10 +147,11 @@ do_addons_distro(){
     PROJECT=$PROJECT DEVICE=$DEVICE ARCH=$ARCH . config/options $(basename $(dirname $PACKAGE))
     if [ "$PKG_IS_ADDON" = "yes" ] ; then
       ADDON=$PKG_NAME
-      [[ $ADDON =~ ^(script.program.driverselect)$ ]] && continue
-      [[ $ADDON =~ ^(service.slice)$ ]] && continue
-      [[ $ADDON =~ ^(tools.mono)$ ]] && continue
-      PROJECT=$PROJECT DEVICE=$DEVICE ARCH=$ARCH scripts/create_addon "$ADDON" 2>&1 | tee -a Log-${DEVICE:-${PROJECT}}-addons.log
+      [[ $ADDON =~ ^(driverselect)$ ]] && continue
+      [[ $ADDON =~ ^(moonlight)$ ]] && continue
+      [[ $ADDON =~ ^(slice)$ ]] && continue
+      [[ $ADDON =~ ^(mono)$ ]] && continue
+      PROJECT=$PROJECT DEVICE=$DEVICE ARCH=$ARCH ADDON_OVERWRITE=$OVERWRITE scripts/create_addon "$ADDON" 2>&1 | tee -a Log-${DEVICE:-${PROJECT}}-addons.log
     fi
   done
 }
@@ -168,7 +181,7 @@ do_build(){
           )&
         done
       elif [ -z "$DEVICE" ] && [ "$PROJECT" = "Rockchip" ]; then
-        declare -a DEVICES=(RK3288)
+        declare -a DEVICES=(RK3328)
         for DEVICE in "${DEVICES[@]}" ; do
           (
             do_building "$@"
@@ -217,12 +230,14 @@ do_xml(){
 }
 
 do_reposync(){
-  if [ -n "$2" ]; then # sync a specific addon and addons.xml files
-    rsync -rP -e "ssh -p 4567" target/addons/$ADDON_VERSION/${DEVICE:-$PROJECT}/$ARCH/$2 releases.libreelec.tv:/var/www/addons/$ADDON_VERSION/${DEVICE:-$PROJECT}/$ARCH/$2
-    rsync -rP -e "ssh -p 4567" target/addons/$ADDON_VERSION/${DEVICE:-$PROJECT}/$ARCH/addons.xml* releases.libreelec.tv:/var/www/addons/$ADDON_VERSION/${DEVICE:-$PROJECT}/$ARCH
-  else  #sync the entire repo
-    rsync -rP -e "ssh -p 4567" target/addons/$ADDON_VERSION/* releases.libreelec.tv:/var/www/addons/$ADDON_VERSION
-  fi
+  case $2 in
+    amlgx)
+      rsync -rvuc -e "ssh -p 4567" target/addons/$ADDON_VERSION/* amlgx@team.libreelec.net:/mnt/teamspace/amlgx/$ADDON_VERSION
+      ;;
+    addons|releases|*)
+      rsync -rvuc -e "ssh -p 4567" target/addons/$ADDON_VERSION/* releases.libreelec.tv:/var/www/addons/$ADDON_VERSION
+      ;;
+  esac
 }
 
 do_user

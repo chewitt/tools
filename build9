@@ -1,28 +1,13 @@
 #!/bin/bash
 
-################################################################################
-#      This file is part of LibreELEC - http://libreelec.tv
-#      Copyright (C) 2016-2017 Christian Hewitt (chewitt@libreelec.tv)
-#
-#  LibreELEC is free software: you can redistribute it and/or modify
-#  it under the terms of the GNU General Public License as published by
-#  the Free Software Foundation, either version 2 of the License, or
-#  (at your option) any later version.
-#
-#  LibreELEC is distributed in the hope that it will be useful,
-#  but WITHOUT ANY WARRANTY; without even the implied warranty of
-#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#  GNU General Public License for more details.
-#
-#  You should have received a copy of the GNU General Public License
-#  along with LibreELEC.  If not, see <http://www.gnu.org/licenses/>.
-################################################################################
+# SPDX-License-Identifier: GPL-2.0-or-later
+# Copyright (C) 2018-present Team LibreELEC (https://libreelec.tv)
 
 # simple script for building projects for a single distribution
 
 set -e
 
-. config/version
+. distributions/LibreELEC/version
 
 # define colors
 black="\e[0;30m"
@@ -65,148 +50,105 @@ do_rundir(){
 
 do_select(){
   case $1 in
-    ATV)
+    aml|Amlogic)
+      declare -a PROJECTS=(Amlogic) && declare -a DEVICES=(LePotato Odroid_C2)
+      do_build
+      ;;
+    atv|ATV)
       declare -a PROJECTS=(ATV)
       do_build
       ;;
-    Generic)
+    c2|Odroid_C2)
+      declare -a PROJECTS=(Amlogic) && declare -a DEVICES=(Odroid_C2)
+      do_build
+      ;;
+    gen|Generic)
       declare -a PROJECTS=(Generic)
       do_build
       ;;
-    mood|moode|moOde)
-      declare -a PROJECTS=(RPi) && declare -a DEVICES=(RPi2)
-      DISTRO="moOde"
+    gxbb)
+      declare -a PROJECTS=(Amlogic) && declare -a DEVICES=(GXBB)
       do_build
       ;;
-    p212)
-      declare -a PROJECTS=(Amlogic_GX) && declare -a DEVICES=(P212)
+    gxl)
+      declare -a PROJECTS=(Amlogic) && declare -a DEVICES=(GXL)
       do_build
       ;;
-    pi)
-      if [ "$OS_VERSION" != "9.0" ]; then
-        declare -a PROJECTS=(RPi RPi2 Slice Slice3)
-      else
-        declare -a PROJECTS=(RPi) && declare -a DEVICES=(RPi RPi2 Slice Slice3)
-      fi
+    gxm)
+      declare -a PROJECTS=(Amlogic) && declare -a DEVICES=(GXM)
       do_build
       ;;
-    pi1|RPi)
-      if [ "$OS_VERSION" != "9.0" ]; then
-        declare -a PROJECTS=(RPi)
-      else
-        declare -a PROJECTS=(RPi) && declare -a DEVICES=(RPi)
-      fi
+    nxp|iMX6)
+      declare -a PROJECTS=(NXP) && declare -a DEVICES=(iMX6)
       do_build
       ;;
-    pi2|RPi2)
-      if [ "$OS_VERSION" != "9.0" ]; then
-        declare -a PROJECTS=(RPi2)
-      else
-        declare -a PROJECTS=(RPi) && declare -a DEVICES=(RPi2)
-      fi
+    k2|NanoPi_K2)
+      declare -a PROJECTS=(Amlogic) && declare -a DEVICES=(NanoPi_K2)
       do_build
       ;;
-    leiot)
-      declare -a PROJECTS=(RPi2)
-      DISTRO="LEIoT"
+    kv|Khadas_VIM)
+      declare -a PROJECTS=(Amlogic) && declare -a DEVICES=(Khadas_VIM)
       do_build
       ;;
-    lepotato|LePotato|spud)
+    kvl|Khadas_VIM_lima)
+      declare -a PROJECTS=(Amlogic) && declare -a DEVICES=(Khadas_VIM_lima)
+      do_build
+      ;;
+    kv2|Khadas_VIM2)
+      declare -a PROJECTS=(Amlogic) && declare -a DEVICES=(Khadas_VIM2)
+      do_build
+      ;;
+    lf|LaFrite)
+      declare -a PROJECTS=(Amlogic) && declare -a DEVICES=(LaFrite)
+      do_build
+      ;;
+    lp|LePotato)
       declare -a PROJECTS=(Amlogic) && declare -a DEVICES=(LePotato)
       do_build
       ;;
-    spudgx)
-      declare -a PROJECTS=(Amlogic_GX) && declare -a DEVICES=(LePotato)
+    lpl|LePotato_lima)
+      declare -a PROJECTS=(Amlogic) && declare -a DEVICES=(LePotato_lima)
       do_build
       ;;
-    imx6)
-      if [ "$OS_VERSION" != "9.0" ]; then
-        declare -a PROJECTS=(imx6)
-      else
-        declare -a PROJECTS=(NXP) && declare -a DEVICES=(iMX6)
-      fi
+    p212|P212)
+      declare -a PROJECTS=(Amlogic) && declare -a DEVICES=(P212)
       do_build
       ;;
-    c2|Odroid_C2)
-      if [ "$OS_VERSION" != "9.0" ]; then
-        declare -a PROJECTS=(Odroid_C2)
-      else
-        declare -a PROJECTS=(Amlogic) && declare -a DEVICES=(Odroid_C2)
-      fi
+    pi1|RPi)
+      declare -a PROJECTS=(RPi) && declare -a DEVICES=(RPi)
       do_build
       ;;
-    aml|Amlogic)
-      declare -a PROJECTS=(Amlogic) && declare -a DEVICES=(S905 LePotato Odroid_C2)
-      do_build
-      ;;
-    s905)
-      declare -a PROJECTS=(Amlogic) && declare -a DEVICES=(S905)
-      do_build
-      ;;
-    o2|o2cz|czbox)
-      declare -a PROJECTS=(Amlogic) && declare -a DEVICES=(CZBOX)
-      do_build
-      ;;
-    o2gx)
-      declare -a PROJECTS=(Amlogic_GX) && declare -a DEVICES=(SML5442TW)
+    pi2|RPi2)
+      declare -a PROJECTS=(RPi) && declare -a DEVICES=(RPi2)
       do_build
       ;;
     s1|Slice1)
-      if [ "$OS_VERSION" != "9.0" ]; then
-        declare -a PROJECTS=(Slice)
-      else
-        declare -a PROJECTS=(RPi) && declare -a DEVICES=(Slice)
-      fi
+      declare -a PROJECTS=(RPi) && declare -a DEVICES=(Slice)
       do_build
       ;;
     s3|Slice3)
-      if [ "$OS_VERSION" != "9.0" ]; then
-        declare -a PROJECTS=(Slice3)
-      else
-        declare -a PROJECTS=(RPi) && declare -a DEVICES=(Slice3)
-      fi
+      declare -a PROJECTS=(RPi) && declare -a DEVICES=(Slice3)
       do_build
       ;;
-    slice)
-      if [ "$OS_VERSION" != "9.0" ]; then
-        declare -a PROJECTS=(Slice Slice3)
-      else
-        declare -a PROJECTS=(RPi) && declare -a DEVICES=(Slice Slice3)
-      fi
+    s905|S905)
+      declare -a PROJECTS=(Amlogic) && declare -a DEVICES=(S905)
+      do_build
+      ;;
+    sml|o2)
+      declare -a PROJECTS=(Amlogic) && declare -a DEVICES=(SML5442TW)
+      do_build
+      ;;
+    tx3|Tanix_TX3)
+      declare -a PROJECTS=(Amlogic) && declare -a DEVICES=(Tanix_TX3)
       do_build
       ;;
     wh|WeTek_Hub)
       declare -a PROJECTS=(Amlogic) && declare -a DEVICES=(WeTek_Hub)
       do_build
       ;;
-    whgx|gxwh)
-      declare -a PROJECTS=(Amlogic_GX) && declare -a DEVICES=(WeTek_Hub)
-      do_build
-      ;;
-    wp|WeTek_Play)
-      declare -a PROJECTS=(WeTek_Play)
-      do_build
-      ;;
     wp2|WeTek_Play_2)
-      declare -a PROJECTS=(WeTek_Play_2)
+      declare -a PROJECTS=(Amlogic) && declare -a DEVICES=(WeTek_Play_2)
       do_build
-      ;;
-    wc|WeTek_Core)
-      declare -a PROJECTS=(WeTek_Core)
-      do_build
-      ;;
-    all)
-      if [ "$OS_VERSION" = "7.0" ]; then
-        declare -a PROJECTS=(Generic imx6 RPi RPi2 Virtual WeTek_Play WeTek_Core)
-      elif [ "$OS_VERSION" = "8.0" ] || [ "$OS_VERSION" = "8.2" ]; then
-        declare -a PROJECTS=(Generic imx6 Odroid_C2 RPi RPi2 Slice Slice3 WeTek_Play WeTek_Play_2 WeTek_Core WeTek_Hub)
-      else # we are 9.0 - imx6 temp removed
-        declare -a PROJECTS=(Generic Amlogic RPi WeTek_Play WeTek_Play_2 WeTek_Core WeTek_Hub)
-      fi
-      do_build
-      ;;
-    release)
-      do_release
       ;;
     sync)
       do_sync
@@ -224,13 +166,6 @@ do_arch(){
       ;;
     Generic)
       ARCH="x86_64"
-      ;;
-    Odroid_C2|WeTek_Hub|WeTek_Play_2)
-      if [ "$OS_VERSION" != "9.0" ]; then
-        ARCH="aarch64"
-      else
-        ARCH="arm"
-      fi
       ;;
     *)
       ARCH="arm"
@@ -252,6 +187,7 @@ do_cleanup(){
   # clean .kernel and .system files
   rm -f target/$DISTRO-${DEVICE:-$PROJECT}.$ARCH-*.kernel | tee -a Log-${DEVICE:-$PROJECT}-build.log || exit 1
   rm -f target/$DISTRO-${DEVICE:-$PROJECT}.$ARCH-*.system | tee -a Log-${DEVICE:-$PROJECT}-build.log || exit 1
+  rm -f target/$DISTRO-${DEVICE:-$PROJECT}.$ARCH-*.sha256 | tee -a Log-${DEVICE:-$PROJECT}-build.log || exit 1
 
   # all done
   echo "$DISTRO-${DEVICE:-$PROJECT}.$ARCH-$LIBREELEC_VERSION BUILD COMPLETE!" | tee -a Log-${DEVICE:-$PROJECT}-build.log || exit 1
@@ -276,7 +212,9 @@ do_build_device(){
   for DEVICE in "${DEVICES[@]}" ; do
     (
       do_clearlog
-      if [ "$PROJECT" = "RPi" -a "$DEVICE" = "RPi" ] || [ "$PROJECT" = "RPi" -a "$DEVICE" = "RPi2" ]; then
+      if [ "$PROJECT" = "Amlogic_GX" -a "$DEVICE" = "WeTek_Hub" -o "$PROJECT" = "Amlogic_GX" -a "$DEVICE" = "WeTek_Play_2" ]; then
+        DISTRO=$DISTRO PROJECT=$PROJECT DEVICE=$DEVICE ARCH=$ARCH make amlpkg 2>&1 | tee -a Log-${DEVICE:-$PROJECT}-build.log || exit 1
+      elif [ "$PROJECT" = "RPi" -a "$DEVICE" = "RPi" ] || [ "$PROJECT" = "RPi" -a "$DEVICE" = "RPi2" ]; then
         DISTRO=$DISTRO PROJECT=$PROJECT DEVICE=$DEVICE ARCH=$ARCH make noobs 2>&1 | tee -a Log-${DEVICE:-$PROJECT}-build.log || exit 1
       else
         DISTRO=$DISTRO PROJECT=$PROJECT DEVICE=$DEVICE ARCH=$ARCH make image 2>&1 | tee -a Log-${DEVICE:-$PROJECT}-build.log || exit 1
@@ -299,10 +237,6 @@ do_build(){
       do_build_device
     fi
   done
-}
-
-do_release(){
-  rsync -av --progress -e "ssh -p 4567" target/*.* releases.libreelec.tv:/home/$BUILDER/
 }
 
 do_sync(){
