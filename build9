@@ -86,12 +86,12 @@ do_select(){
       declare -a PROJECTS=(Amlogic) && declare -a DEVICES=(NanoPi_K2)
       do_build
       ;;
-    kv|Khadas_VIM)
-      declare -a PROJECTS=(Amlogic) && declare -a DEVICES=(Khadas_VIM)
+    ke|edge)
+      declare -a PROJECTS=(Rockchip) && declare -a DEVICES=(RK3399)
       do_build
       ;;
-    kvl|Khadas_VIM_lima)
-      declare -a PROJECTS=(Amlogic) && declare -a DEVICES=(Khadas_VIM_lima)
+    kv|Khadas_VIM)
+      declare -a PROJECTS=(Amlogic) && declare -a DEVICES=(Khadas_VIM)
       do_build
       ;;
     kv2|Khadas_VIM2)
@@ -106,10 +106,6 @@ do_select(){
       declare -a PROJECTS=(Amlogic) && declare -a DEVICES=(LePotato)
       do_build
       ;;
-    lpl|LePotato_lima)
-      declare -a PROJECTS=(Amlogic) && declare -a DEVICES=(LePotato_lima)
-      do_build
-      ;;
     p212|P212)
       declare -a PROJECTS=(Amlogic) && declare -a DEVICES=(P212)
       do_build
@@ -120,6 +116,10 @@ do_select(){
       ;;
     pi2|RPi2)
       declare -a PROJECTS=(RPi) && declare -a DEVICES=(RPi2)
+      do_build
+      ;;
+    rp|rp64)
+      declare -a PROJECTS=(Rockchip) && declare -a DEVICES=(RK3399) && UBOOT_SYSTEM="rockpro64"
       do_build
       ;;
     s1|Slice1)
@@ -160,7 +160,7 @@ do_select(){
 }
 
 do_arch(){
-  case $PROJECT in
+  case ${PROJECT} in
     ATV)
       ARCH="i386"
       ;;
@@ -189,6 +189,12 @@ do_cleanup(){
   rm -f target/$DISTRO-${DEVICE:-$PROJECT}.$ARCH-*.system | tee -a Log-${DEVICE:-$PROJECT}-build.log || exit 1
   rm -f target/$DISTRO-${DEVICE:-$PROJECT}.$ARCH-*.sha256 | tee -a Log-${DEVICE:-$PROJECT}-build.log || exit 1
 
+  if [ "$PROJECT" = "Amlogic" -a "$DEVICE" = "Khadas_VIM2" -o "$PROJECT" = "Amlogic" -a "$DEVICE" = "Nexbox_A1" ]; then
+    rm -f target/$DISTRO-${DEVICE:-$PROJECT}.aarch64-*.kernel | tee -a Log-${DEVICE:-$PROJECT}-build.log || exit 1
+    rm -f target/$DISTRO-${DEVICE:-$PROJECT}.aarch64-*.system | tee -a Log-${DEVICE:-$PROJECT}-build.log || exit 1
+    rm -f target/$DISTRO-${DEVICE:-$PROJECT}.aarch64-*.sha256 | tee -a Log-${DEVICE:-$PROJECT}-build.log || exit 1
+  fi
+
   # all done
   echo "$DISTRO-${DEVICE:-$PROJECT}.$ARCH-$LIBREELEC_VERSION BUILD COMPLETE!" | tee -a Log-${DEVICE:-$PROJECT}-build.log || exit 1
   exit 0
@@ -212,8 +218,10 @@ do_build_device(){
   for DEVICE in "${DEVICES[@]}" ; do
     (
       do_clearlog
-      if [ "$PROJECT" = "Amlogic_GX" -a "$DEVICE" = "WeTek_Hub" -o "$PROJECT" = "Amlogic_GX" -a "$DEVICE" = "WeTek_Play_2" ]; then
+      if [ "$PROJECT" = "Amlogic" -a "$DEVICE" = "WeTek_Hub" -o "$PROJECT" = "Amlogic" -a "$DEVICE" = "WeTek_Play_2" ]; then
         DISTRO=$DISTRO PROJECT=$PROJECT DEVICE=$DEVICE ARCH=$ARCH make amlpkg 2>&1 | tee -a Log-${DEVICE:-$PROJECT}-build.log || exit 1
+      elif [ "$PROJECT" = "Amlogic" -a "$DEVICE" = "Khadas_VIM2" -o "$PROJECT" = "Amlogic" -a "$DEVICE" = "Nexbox_A1" ]; then
+        DISTRO=$DISTRO PROJECT=$PROJECT DEVICE=$DEVICE ARCH=aarch64 make image 2>&1 | tee -a Log-${DEVICE:-$PROJECT}-build.log || exit 1
       elif [ "$PROJECT" = "RPi" -a "$DEVICE" = "RPi" ] || [ "$PROJECT" = "RPi" -a "$DEVICE" = "RPi2" ]; then
         DISTRO=$DISTRO PROJECT=$PROJECT DEVICE=$DEVICE ARCH=$ARCH make noobs 2>&1 | tee -a Log-${DEVICE:-$PROJECT}-build.log || exit 1
       else
@@ -240,7 +248,8 @@ do_build(){
 }
 
 do_sync(){
-  rsync -av --progress -e "ssh -p 4567" target/*.* team.libreelec.net:/home/$BUILDER/www/samples/$OS_VERSION/
+  . ~/.libreelec/syncdir
+  rsync -av --progress -e "ssh -p 4567" target/*.* team.libreelec.net:/home/$BUILDER/www/$SYNCDIR/$OS_VERSION/
 }
 
 do_user
