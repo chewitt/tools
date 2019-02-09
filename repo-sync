@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 # Copyright (C) 2018 Christian Hewitt (chewitt@libreelec.tv)
 
-. config/version
+. distributions/LibreELEC/version
 
 # prevent ~/.libreelec/options from setting a version
 sed -i 's|HOME/.libreelec/options|HOME/.libreelec/disabled|g' config/options
